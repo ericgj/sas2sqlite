@@ -1,0 +1,13 @@
+{
+  "desc": "julian date conversion",
+  "table": "test",
+  "cols": [
+      { "test_date": "NUMERIC" }
+  ],
+  "rows": [
+      { "test_date": 2459434.5 },
+      { "test_date": 2459215.5 },
+      { "test_date": null }
+  ]
+}
+

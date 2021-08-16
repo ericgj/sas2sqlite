@@ -2,91 +2,11 @@ __version__ = "0.0.1"
 
 from calendar import timegm
 from datetime import date, datetime, time
-import re
 import sqlite3
 from typing import Any, Optional, Iterable, Tuple, List, Callable
 
 import julian  # type: ignore
 from sas7bdat import SAS7BDAT  # type: ignore
-
-SAS_TIME_FORMATS = re.compile(
-    "(?:%s)"
-    % "|".join(
-        [
-            r"hhmm\d*",
-            r"hhmm\d+\.\d+",
-            r"hour\d*",
-            r"hour\d+\.\d+",
-            r"mmss\d*",
-            r"mmss\d+\.\d+",
-            r"time\d*",
-            r"time\d+\.\d+",
-            r"timeampm\d*",
-            r"timeampm\d+\.\d+",
-            r"tod\d*",
-            r"tod\d+\.\d+",
-        ]
-    )
-)
-
-SAS_DATE_FORMATS = re.compile(
-    "(?:%s)"
-    % "|".join(
-        [
-            r"date\d*",
-            r"day\d*",
-            r"ddmmyy\d*",
-            r"ddmmyy\w\d*",
-            r"julday\d*",
-            r"julian\d*",
-            r"monname\d*",
-            r"month\d*",
-            r"monyy\d*",
-            r"mmddyy\d*",
-            r"mmddyy\w\d*",
-            r"mmyy\d*",
-            r"mmyy\w\d*",
-            r"qtr\d*",
-            r"qtrr\d*",
-            r"weekdate\d*",
-            r"weekdatx\d*",
-            r"weekday\d*",
-            r"year\d*",
-            r"yymm\d*",
-            r"yymm\w\d*",
-            r"yymmdd\d*",
-            r"yymmdd\w\d*",
-            r"yymon\d*",
-            r"yyq\d*",
-            r"yyq\w\d*",
-            r"yyqr\d*",
-            r"yyqr\w\d*",
-        ]
-    )
-)
-
-SAS_DATETIME_FORMATS = re.compile(
-    "(?:%s)"
-    % "|".join(
-        [
-            r"dateampm\d*",
-            r"dateampm\d+\.\d+",
-            r"datetime\d*",
-            r"datetime\d+\.\d+",
-            r"dtdate\d*",
-            r"dtmonyy\d*",
-            r"dtwkdatx\d*",
-            r"dtyear\d*",
-            r"dtyyqc\d*",
-            r"mdyampm\d*",
-            r"mdyampm\d+\.\d+",
-            r"timeampm\d*",
-            r"timeampm\d+\.\d+",
-            r"tod\d*",
-            r"tod\d+\.\d+",
-        ]
-    )
-)
 
 
 def time_to_seconds(t: time) -> float:
@@ -163,7 +83,7 @@ def store_datetime(datetime_type: str, datetime_format: str) -> None:
 
 def import_dataset(
     conn: sqlite3.Connection,
-    dataset_file: str,
+    dataset: SAS7BDAT,
     *,
     table: Optional[str] = None,
     schema: Optional[str] = None,
@@ -180,8 +100,11 @@ def import_dataset(
     store_date(store_date_as, store_date_format)
     store_datetime(store_datetime_as, store_datetime_format)
 
+    saved_skip_header = dataset.skip_header
+    dataset.skip_header = True  # always skip header row for our purposes
+
     try:
-        with SAS7BDAT(dataset_file, skip_header=True) as r:
+        with dataset as r:
             cols = r.columns
             if table is None:
                 table = r.header.properties.name.decode("utf-8")
@@ -193,6 +116,10 @@ def import_dataset(
                             table,
                             cols,
                             schema=schema,
+                            encoding=r.encoding,
+                            sas_time_formats=r.TIME_FORMAT_STRINGS,
+                            sas_date_formats=r.DATE_FORMAT_STRINGS,
+                            sas_datetime_formats=r.DATE_TIME_FORMAT_STRINGS,
                             store_time_as=store_time_as,
                             store_date_as=store_date_as,
                             store_datetime_as=store_datetime_as,
@@ -201,9 +128,14 @@ def import_dataset(
 
             with conn:
                 for row in r:
-                    conn.execute(*insert_sql(table, cols, row, schema))
+                    conn.execute(
+                        *insert_sql(
+                            table, cols, row, encoding=r.encoding, schema=schema
+                        )
+                    )
     finally:
         sqlite3.adapters = saved_adapters
+        dataset.skip_header = saved_skip_header
 
 
 def drop_table_sql(table: str, schema: Optional[str] = None) -> str:
@@ -216,6 +148,11 @@ def drop_table_sql(table: str, schema: Optional[str] = None) -> str:
 def create_table_sql(
     table: str,
     cols: Iterable[Any],
+    *,
+    encoding: str,
+    sas_time_formats: Iterable[str],
+    sas_date_formats: Iterable[str],
+    sas_datetime_formats: Iterable[str],
     store_time_as: str,
     store_date_as: str,
     store_datetime_as: str,
@@ -224,23 +161,20 @@ def create_table_sql(
     col_lines: List[str] = []
     for col in cols:
         if col.type.lower() == "string":
-            col_lines.append(f"`{col.name.decode('utf-8')}` VARCHAR({col.length})")
+            col_lines.append(f"`{col.name.decode(encoding)}` VARCHAR({col.length})")
         elif col.type.lower() == "number":
-            format = None if col.format is None else col.format.lower()
+            format = None if col.format is None else col.format.upper()
             if not format is None and (
-                (re.match(SAS_TIME_FORMATS, format) and store_time_as == "text")
-                or (re.match(SAS_DATE_FORMATS, format) and store_date_as == "text")
-                or (
-                    re.match(SAS_DATETIME_FORMATS, format)
-                    and store_datetime_as == "text"
-                )
+                (format in sas_time_formats and store_time_as == "text")
+                or (format in sas_date_formats and store_date_as == "text")
+                or (format in sas_datetime_formats and store_datetime_as == "text")
             ):
-                col_lines.append(f"`{col.name.decode('utf-8')}` TEXT")
+                col_lines.append(f"`{col.name.decode(encoding)}` TEXT")
             else:
-                col_lines.append(f"`{col.name.decode('utf-8')}` NUMERIC")
+                col_lines.append(f"`{col.name.decode(encoding)}` NUMERIC")
         else:
             raise ValueError(
-                f"Unknown column type '{col.type}': column {col.name.decode('utf-8')}"
+                f"Unknown column type '{col.type}': column {col.name.decode(encoding)}"
             )
 
     col_defs = ", ".join(col_lines)
@@ -251,9 +185,14 @@ def create_table_sql(
 
 
 def insert_sql(
-    table: str, cols: Iterable[Any], row: Iterable[Any], schema: Optional[str] = None
+    table: str,
+    cols: Iterable[Any],
+    row: Iterable[Any],
+    *,
+    encoding,
+    schema: Optional[str] = None,
 ) -> Tuple[str, Iterable[Any]]:
-    col_expr = ",".join([f"`{col.name.decode('utf-8')}`" for col in cols])
+    col_expr = ",".join([f"`{col.name.decode(encoding)}`" for col in cols])
     val_expr = ",".join(["?" for col in cols])
     if schema is None:
         return (f"INSERT INTO `{table}` ({col_expr}) VALUES ({val_expr});", row)

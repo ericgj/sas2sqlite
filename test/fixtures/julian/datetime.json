@@ -1,0 +1,14 @@
+{
+  "desc": "julian datetime conversion",
+  "table": "test",
+  "cols": [
+      { "test_datetime": "NUMERIC" }
+  ],
+  "rows": [
+      { "test_datetime": null },
+      { "test_datetime": 2459215.5 },
+      { "test_datetime": 2459215.499988426 }
+  ]
+}
+
+

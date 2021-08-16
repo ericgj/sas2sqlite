@@ -1,6 +1,9 @@
 {
   "desc": "default date conversion",
   "table": "test",
+  "cols": [
+      { "test_date": "TEXT" }
+  ],
   "rows": [
       { "test_date": "2021-08-08" },
       { "test_date": "2021-01-01" },

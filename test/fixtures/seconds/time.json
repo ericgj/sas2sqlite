@@ -2,11 +2,11 @@
   "desc": "default time conversion",
   "table": "test",
   "cols": [
-      { "test_time": "TEXT" }
+      { "test_time": "NUMERIC" }
   ],
   "rows": [
-      { "test_time": "01:02:03" },
+      { "test_time": 3723 },
       { "test_time": null },
-      { "test_time": "23:59:59" }
+      { "test_time": 86399 }
   ]
 }

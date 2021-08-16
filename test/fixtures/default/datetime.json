@@ -1,6 +1,9 @@
 {
   "desc": "default datetime conversion",
   "table": "test",
+  "cols": [
+      { "test_datetime": "TEXT" }
+  ],
   "rows": [
       { "test_datetime": null },
       { "test_datetime": "2021-01-01T00:00:00" },

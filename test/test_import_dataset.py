@@ -1,10 +1,12 @@
 import json
 import os.path
 import os
+import re
 import sqlite3
-from typing import Any, Optional, List
+from typing import Any, Optional, List, Dict
 
-import sas2sqlite  # type: ignore
+from sas7bdat import SAS7BDAT  # type: ignore
+import sas2sqlite
 
 TEST_DIR = os.path.dirname(__file__)
 
@@ -30,7 +32,8 @@ def test_default():
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     for sasfile in sas_fixtures("fixtures/default"):
-        sas2sqlite.import_dataset(conn, sasfile, create_table=True)
+        dataset = SAS7BDAT(sasfile)
+        sas2sqlite.import_dataset(conn, dataset, create_table=True)
 
     for exp in expected_fixtures("fixtures/default"):
         assert_rows(
@@ -41,7 +44,105 @@ def test_default():
             desc=exp.get("desc"),
         )
 
-        # TODO: assert sqlite3 column types
+        assert_col_types(
+            conn,
+            table=str(exp["table"]),
+            exp_cols=list(exp["cols"]),
+            schema=exp.get("schema"),
+            desc=exp.get("desc"),
+        )
+
+
+def test_julian():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    for sasfile in sas_fixtures("fixtures/julian"):
+        dataset = SAS7BDAT(sasfile)
+        sas2sqlite.import_dataset(
+            conn,
+            dataset,
+            create_table=True,
+            store_date_as="julian",
+            store_datetime_as="julian",
+        )
+
+    for exp in expected_fixtures("fixtures/julian"):
+        assert_rows(
+            conn,
+            table=str(exp["table"]),
+            exp_rows=list(exp["rows"]),
+            schema=exp.get("schema"),
+            desc=exp.get("desc"),
+        )
+
+        assert_col_types(
+            conn,
+            table=str(exp["table"]),
+            exp_cols=list(exp["cols"]),
+            schema=exp.get("schema"),
+            desc=exp.get("desc"),
+        )
+
+
+def test_posix():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    for sasfile in sas_fixtures("fixtures/posix"):
+        dataset = SAS7BDAT(sasfile)
+        sas2sqlite.import_dataset(
+            conn,
+            dataset,
+            create_table=True,
+            store_date_as="posix",
+            store_datetime_as="posix",
+        )
+
+    for exp in expected_fixtures("fixtures/posix"):
+        assert_rows(
+            conn,
+            table=str(exp["table"]),
+            exp_rows=list(exp["rows"]),
+            schema=exp.get("schema"),
+            desc=exp.get("desc"),
+        )
+
+        assert_col_types(
+            conn,
+            table=str(exp["table"]),
+            exp_cols=list(exp["cols"]),
+            schema=exp.get("schema"),
+            desc=exp.get("desc"),
+        )
+
+
+def test_seconds_from_midnight():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    for sasfile in sas_fixtures("fixtures/seconds"):
+        dataset = SAS7BDAT(sasfile)
+        sas2sqlite.import_dataset(
+            conn,
+            dataset,
+            create_table=True,
+            store_time_as="seconds",
+        )
+
+    for exp in expected_fixtures("fixtures/seconds"):
+        assert_rows(
+            conn,
+            table=str(exp["table"]),
+            exp_rows=list(exp["rows"]),
+            schema=exp.get("schema"),
+            desc=exp.get("desc"),
+        )
+
+        assert_col_types(
+            conn,
+            table=str(exp["table"]),
+            exp_cols=list(exp["cols"]),
+            schema=exp.get("schema"),
+            desc=exp.get("desc"),
+        )
 
 
 def assert_rows(
@@ -66,3 +167,35 @@ def assert_rows(
             assert (
                 a == e
             ), f"row {i+1}, column {k}: expected {repr(e)}, was {repr(a)} ({desc})"
+
+
+def assert_col_types(
+    conn: sqlite3.Connection,
+    table: str,
+    exp_cols: List[Dict[str, str]],
+    schema: Optional[str] = None,
+    desc: Optional[str] = None,
+):
+    if desc is None:
+        desc = table
+
+    # Note: I don't know how to get schema info from a foreign schema (attached db)
+    # So schema is ignored
+
+    c = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE LOWER(`name`) = ? LIMIT 1",
+        (table.lower(),),
+    )
+    r = c.fetchone()
+    assert r is not None, f"Did not find table '{table}'"
+    sql = r[0]
+    for (i, exp) in enumerate(exp_cols):
+        for k in exp:
+            exp_type = exp[k]
+            assert matches_col_type(
+                k, exp_type, sql
+            ), f"row {i+1}, column {k}: expected '{exp_type}' ({desc})"
+
+
+def matches_col_type(col_name, exp_type, sql):
+    return re.search(f"`{col_name}` {exp_type}", sql) is not None
