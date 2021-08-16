@@ -20,7 +20,7 @@ def get_version(rel_path):
         raise RuntimeError("Unable to find version string.")
 
 
-install_requires = []
+install_requires = ["sas7bdat", "julian"]
 
 tests_require = ["pytest"]
 

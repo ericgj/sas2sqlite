@@ -1,0 +1,10 @@
+{
+  "desc": "default date conversion",
+  "table": "test",
+  "rows": [
+      { "test_date": "2021-08-08" },
+      { "test_date": "2021-01-01" },
+      { "test_date": null }
+  ]
+}
+

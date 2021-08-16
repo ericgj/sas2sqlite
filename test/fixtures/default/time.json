@@ -1,0 +1,9 @@
+{
+  "desc": "default time conversion",
+  "table": "test",
+  "rows": [
+      { "test_time": "01:02:03" },
+      { "test_time": null },
+      { "test_time": "23:59:59" }
+  ]
+}
