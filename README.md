@@ -28,6 +28,33 @@ sas2sqlite some_dataset.sas7bdat some_sqlite.db \
 ```
 
 
+## Python library usage
+
+```python
+from sas2sqlite3 import import_dataset
+from sas7bdat import SAS7BDAT
+import sqlite3
+
+# custom sqlite3 adapter for datetime data
+sqlite3.register_adapter(datetime, some_datetime_adapter)
+
+conn = sqlite3.connect('some_sqlite.db')
+
+# custom sqlite3 logging
+conn.set_trace_callback(some_logger.debug)
+
+# custom options for SAS dataset parser
+dataset = SAS7BDAT(
+    'some_dataset.sas7bdat', 
+    extra_date_format_strings=['YYMMDD.'],
+    encoding='utf-16',
+)
+
+import_dataset(conn, dataset) 
+```
+
+
+
 ## Install
 
 _Requires python 3.6+ and pip._
