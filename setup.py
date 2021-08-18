@@ -26,8 +26,8 @@ tests_require = ["pytest"]
 
 
 setup(
-    name="sas2sqlite",
-    version=get_version("src/sas2sqlite/__init__.py"),
+    name="sas2sqlite3",
+    version=get_version("src/sas2sqlite3/__init__.py"),
     author="Eric Gjertsen",
     author_email="ericgj72@gmail.com",
     description="Import sas7bdat files to sqlite3 dbase",
@@ -42,7 +42,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "sas2sqlite=sas2sqlite.__main__:main",
+            "sas2sqlite=sas2sqlite3.__main__:main",
         ],
     },
     package_dir={"": "src"},

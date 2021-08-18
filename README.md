@@ -1,4 +1,4 @@
-# sas2sqlite
+# sas2sqlite3
 
 Import sas7bdat files to sqlite3 dbase. Uses the [sas7bdat][sas7bdat] SAS 
 dataset file parser.
@@ -33,8 +33,10 @@ sas2sqlite some_dataset.sas7bdat some_sqlite.db \
 _Requires python 3.6+ and pip._
 
 ```sh
-pip install sas2sqlite
+pip install sas2sqlite3
 ```
+
+_Note: the package has a '3' at the end. The executable does not._
 
 
 ## Other tools
